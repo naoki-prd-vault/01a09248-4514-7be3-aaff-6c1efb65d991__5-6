@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const WINE_FINISHES = [
   {
@@ -68,7 +68,78 @@ export default function Home() {
   const [bpm, setBpm] = useState(88);
   const [reserved, setReserved] = useState(false);
 
+  // TAP TEMPO / BPM METER STATE
+  const [tapTimestamps, setTapTimestamps] = useState<number[]>([]);
+  const [tapStatus, setTapStatus] = useState<string>("Toca para medir");
+  const [tapFlash, setTapFlash] = useState<boolean>(false);
+  const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const beatSpeed = (60 / bpm).toFixed(2);
+
+  // Handle click on heart or sensor pad to calculate BPM
+  const handleTap = () => {
+    const now = Date.now();
+
+    // Trigger visual flash
+    setTapFlash(true);
+    setTimeout(() => setTapFlash(false), 140);
+
+    // Clear auto-reset timer
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+
+    setTapTimestamps((prev) => {
+      // If last tap was more than 3 seconds ago, start fresh
+      const lastTap = prev[prev.length - 1];
+      const isFresh = !lastTap || now - lastTap > 3000;
+      const updated = isFresh ? [now] : [...prev, now];
+
+      if (updated.length === 1) {
+        setTapStatus("Toca de nuevo para calcular...");
+      } else {
+        // Calculate rolling average interval between consecutive taps
+        const intervals: number[] = [];
+        for (let i = 1; i < updated.length; i++) {
+          intervals.push(updated[i] - updated[i - 1]);
+        }
+        // Take up to last 8 intervals for smooth precision
+        const recentIntervals = intervals.slice(-8);
+        const avgInterval = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
+
+        if (avgInterval > 0) {
+          const calculated = Math.round(60000 / avgInterval);
+          const clamped = Math.min(220, Math.max(40, calculated));
+          setBpm(clamped);
+          setTapStatus(`${updated.length} pulsos • ${clamped} BPM detectados`);
+        }
+      }
+
+      return updated;
+    });
+
+    // Reset session message after 3.5 seconds of inactivity
+    resetTimerRef.current = setTimeout(() => {
+      setTapStatus("Toca para medir");
+      setTapTimestamps([]);
+    }, 3500);
+  };
+
+  const handleResetBpm = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTapTimestamps([]);
+    setBpm(88);
+    setTapStatus("Restablecido a 88 BPM");
+  };
+
+  // Rhythm classification label
+  const getBpmClassification = (val: number) => {
+    if (val < 62) return "Cadencia Serena • Calma Meditativa";
+    if (val <= 85) return "Pulso Óptimo • Seducción Silenciosa";
+    if (val <= 110) return "Atracción • Deseo Creciente";
+    if (val <= 140) return "Fervor • Pasión Intensa";
+    return "Éxtasis • Amor a Primera Vista";
+  };
 
   return (
     <div className="min-h-screen bg-[#030204] text-zinc-100 selection:bg-[#721224] selection:text-white font-sans-luxury overflow-x-hidden antialiased">
@@ -112,7 +183,6 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between text-xs">
           <div className="flex items-center gap-10">
             <a href="#" className="flex items-center gap-2.5 group">
-              {/* Heart Atelier Emblem */}
               <div className="relative">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-[#8a1831] group-hover:text-[#cf2b50] transition-colors drop-shadow-[0_0_10px_rgba(207,43,80,0.8)]">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -124,9 +194,9 @@ export default function Home() {
             </a>
 
             <nav className="hidden md:flex items-center gap-8 text-[11px] font-cinzel tracking-[0.2em] text-zinc-400">
+              <a href="#medidor" className="hover:text-rose-200 transition-colors">MEDIDOR BPM</a>
               <a href="#anatomia" className="hover:text-rose-200 transition-colors">ANATOMÍA</a>
               <a href="#artesania" className="hover:text-rose-200 transition-colors">ARTESANÍA</a>
-              <a href="#acabados" className="hover:text-rose-200 transition-colors">GAMA VINO</a>
               <a href="#reserva" className="hover:text-rose-200 transition-colors">ATELIER PRIVÉ</a>
             </nav>
           </div>
@@ -155,14 +225,14 @@ export default function Home() {
         <div className="absolute -top-40 right-10 w-[500px] h-[500px] rounded-full bg-[#520918]/30 blur-[170px]" />
       </div>
 
-      {/* HERO SECTION: HAUTE COUTURE LUXURY */}
-      <section className="relative z-10 pt-20 pb-32 px-6 text-center">
+      {/* HERO SECTION WITH INTERACTIVE TAP TEMPO */}
+      <section id="medidor" className="relative z-10 pt-20 pb-28 px-6 text-center">
         <div className="max-w-4xl mx-auto">
           {/* Eyebrow badge */}
           <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-[#5c0e20]/60 bg-[#140307]/80 backdrop-blur-md mb-8 shadow-[0_0_25px_rgba(92,14,32,0.35)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[#cf2b50] animate-pulse" />
             <span className="font-cinzel text-[10px] uppercase tracking-[0.32em] font-semibold text-rose-200">
-              Colección Haute Horlogerie & Biología
+              Sensor Biométrico Activo • Haz Clic para Medir
             </span>
           </div>
 
@@ -175,31 +245,15 @@ export default function Home() {
           </h1>
 
           <p className="font-serif-luxury italic text-2xl sm:text-3xl lg:text-4xl font-normal text-rose-100/80 max-w-2xl mx-auto mb-4 tracking-tight leading-snug">
-            "La máxima expresión del deseo forjada en titanio vino y sombras infinitas."
+            "Sincroniza el latido con cada clic de tus dedos."
           </p>
 
-          <p className="font-sans-luxury text-sm sm:text-base text-zinc-400 max-w-xl mx-auto mb-12 font-light tracking-wide leading-relaxed">
-            Una escultura biológica creada para palpitar en la intimidad de tu pecho. Suavidad de terciopelo, ingeniería atemporal y una resonancia que estremece el alma.
+          <p className="font-sans-luxury text-sm sm:text-base text-zinc-400 max-w-xl mx-auto mb-10 font-light tracking-wide leading-relaxed">
+            Haz clic repetidamente al compás de tu respiración, emoción o música para calibrar la frecuencia de latidos en tiempo real.
           </p>
 
-          {/* Action buttons */}
-          <div className="flex flex-wrap items-center justify-center gap-5 text-xs mb-16 font-cinzel">
-            <a
-              href="#reserva"
-              className="px-9 py-4 rounded-full bg-gradient-to-b from-[#8f1631] to-[#540a1b] text-white font-medium tracking-[0.2em] uppercase border border-[#bd2445]/60 shadow-[0_0_30px_rgba(143,22,49,0.5)] hover:shadow-[0_0_50px_rgba(207,43,80,0.8)] hover:scale-105 active:scale-95 transition-all duration-300"
-            >
-              Solicitar Audiencia Privada
-            </a>
-            <a
-              href="#anatomia"
-              className="px-8 py-4 rounded-full bg-[#120408]/80 text-zinc-300 font-light tracking-[0.18em] uppercase border border-[#3b0d18] hover:border-[#6e182e] hover:text-white transition-all backdrop-blur-md"
-            >
-              Explorar Anatomía ↓
-            </a>
-          </div>
-
-          {/* SCULPTED LUXURY HEART VESSEL */}
-          <div className="relative py-12 flex flex-col items-center justify-center">
+          {/* SCULPTED LUXURY HEART VESSEL (CLICKABLE TAP TARGET) */}
+          <div className="relative py-8 flex flex-col items-center justify-center">
             {/* Fine Astronomical/Compass Rings */}
             <div
               className="absolute w-80 h-80 sm:w-[440px] sm:h-[440px] rounded-full border border-[#420a16]/40 animate-spin pointer-events-none"
@@ -207,11 +261,18 @@ export default function Home() {
             />
             <div className="absolute w-64 h-64 sm:w-88 sm:h-88 rounded-full border border-dashed border-[#570d1e]/30 pointer-events-none" />
 
-            {/* The Heart */}
+            {/* Ripple wave when tapped */}
+            {tapFlash && (
+              <div className="absolute w-60 h-60 sm:w-80 sm:h-80 rounded-full border-2 border-[#cf2b50] animate-ping pointer-events-none" />
+            )}
+
+            {/* The Heart (Clickable) */}
             <div
-              onClick={() => setBpm((prev) => (prev === 58 ? 88 : prev === 88 ? 132 : 58))}
-              className="relative cursor-pointer group p-6 select-none"
-              title="Toca para alterar la frecuencia del deseo"
+              onClick={handleTap}
+              className={`relative cursor-pointer group p-6 select-none transition-transform duration-150 active:scale-95 ${
+                tapFlash ? "scale-105" : ""
+              }`}
+              title="¡Haz clic repetidas veces aquí para medir tu ritmo cardíaco!"
             >
               <div className="sensual-heartbeat transition-transform duration-500 group-hover:scale-105">
                 <svg
@@ -219,13 +280,11 @@ export default function Home() {
                   className="w-56 h-56 sm:w-72 sm:h-72 transition-all duration-700"
                 >
                   <defs>
-                    {/* Deep wine velvet radial gradient */}
                     <radialGradient id="wineRadial" cx="35%" cy="30%" r="70%">
                       <stop offset="0%" stopColor={finish.svgGradStart} />
                       <stop offset="60%" stopColor={finish.svgGradEnd} />
                       <stop offset="100%" stopColor="#080103" />
                     </radialGradient>
-                    {/* Specular highlight overlay for glossy glass look */}
                     <linearGradient id="specularGlint" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="rgba(255,255,255,0.5)" />
                       <stop offset="25%" stopColor="rgba(255,255,255,0.06)" />
@@ -233,13 +292,11 @@ export default function Home() {
                     </linearGradient>
                   </defs>
 
-                  {/* Main Heart Body */}
                   <path
                     fill="url(#wineRadial)"
                     d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
                   />
 
-                  {/* Elegant inner bevel reflection */}
                   <path
                     fill="url(#specularGlint)"
                     d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
@@ -250,13 +307,18 @@ export default function Home() {
 
               {/* Central Chronometer HUD */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="font-serif-luxury italic text-4xl sm:text-5xl font-light tracking-tight text-white/95 drop-shadow-[0_2px_15px_rgba(0,0,0,0.9)]">
+                <span className="font-serif-luxury italic text-5xl sm:text-6xl font-light tracking-tight text-white/95 drop-shadow-[0_2px_15px_rgba(0,0,0,0.9)]">
                   {bpm}
                 </span>
                 <span className="font-cinzel text-[9px] uppercase tracking-[0.35em] font-medium text-rose-300/80 drop-shadow">
-                  Pulsos / Min
+                  BPM LIVE
                 </span>
               </div>
+            </div>
+
+            {/* Rhythm Classification Badge */}
+            <div className="mt-2 inline-flex items-center gap-2 px-4 py-1 rounded-full bg-[#140307]/70 border border-[#3b0b17] text-rose-200/90 text-xs font-serif-luxury italic">
+              <span>{getBpmClassification(bpm)}</span>
             </div>
 
             {/* Glowing Wine ECG Wave */}
@@ -274,8 +336,62 @@ export default function Home() {
               </span>
             </div>
 
-            {/* FINISH & RHYTHM CONTROL PILL */}
-            <div className="mt-10 p-5 rounded-3xl bg-[#090306]/90 border border-[#3b0b17] shadow-[0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl flex flex-col md:flex-row items-center gap-8 z-20">
+            {/* DEDICATED TAP TEMPO BIOMETRIC SENSOR PAD */}
+            <div className="mt-8 w-full max-w-md mx-auto">
+              <button
+                onClick={handleTap}
+                className={`w-full py-5 px-6 rounded-3xl border transition-all duration-300 flex flex-col items-center justify-center gap-2 cursor-pointer relative overflow-hidden group shadow-[0_20px_50px_rgba(0,0,0,0.8)] ${
+                  tapFlash
+                    ? "bg-gradient-to-r from-[#9e1c3a] to-[#5c0b1c] border-[#cf2b50] scale-[0.98] shadow-[0_0_40px_rgba(207,43,80,0.8)]"
+                    : "bg-[#090306]/90 border-[#3b0b17] hover:border-[#7a1228] hover:bg-[#120409]"
+                }`}
+              >
+                {/* Fingerprint / Tap Icon */}
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full border transition-colors ${
+                    tapFlash ? "border-white bg-white/20 text-white" : "border-[#7a1228] bg-[#24060e] text-[#cf2b50]"
+                  }`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <path d="M12 2a10 10 0 0 0-10 10c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69" />
+                      <path d="M12 6a6 6 0 0 0-6 6c0 2.5 1.5 4.5 3.5 5.5" />
+                      <circle cx="12" cy="12" r="2" />
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <span className="font-cinzel text-xs tracking-[0.25em] font-semibold text-white block uppercase">
+                      Sensor Táctil de Pulso (Tap BPM)
+                    </span>
+                    <span className="font-sans-luxury text-[11px] text-zinc-400 font-light">
+                      Haz clic rítmicamente para medir tu frecuencia
+                    </span>
+                  </div>
+                </div>
+
+                {/* Real-time Tap Count and Live Feedback */}
+                <div className="mt-2 flex items-center justify-between w-full pt-3 border-t border-[#24060e] text-xs">
+                  <span className="font-mono text-[11px] text-rose-300/90 font-medium">
+                    {tapStatus}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-cinzel text-zinc-500 uppercase tracking-wider">
+                      {tapTimestamps.length > 0 ? `${tapTimestamps.length} toques` : "Listo"}
+                    </span>
+                    {tapTimestamps.length > 0 && (
+                      <span
+                        onClick={handleResetBpm}
+                        className="text-[10px] font-cinzel text-rose-400 hover:text-white underline cursor-pointer"
+                        title="Restablecer a 88 BPM"
+                      >
+                        Reiniciar
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* FINISH & PRESETS CONTROL PILL */}
+            <div className="mt-8 p-5 rounded-3xl bg-[#090306]/90 border border-[#3b0b17] shadow-[0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl flex flex-col md:flex-row items-center gap-8 z-20">
               {/* Color finishes */}
               <div className="flex flex-col items-center md:items-start gap-2">
                 <div className="flex items-center gap-2">
@@ -307,16 +423,20 @@ export default function Home() {
 
               <div className="h-10 w-px bg-[#26070f] hidden md:block" />
 
-              {/* Rhythms */}
+              {/* Quick Preset Rhythms */}
               <div className="flex flex-col items-center md:items-start gap-2">
                 <span className="font-cinzel text-[10px] uppercase tracking-[0.25em] text-zinc-400 font-medium">
-                  Cadencia Sensorial
+                  Preajustes Sensoriales
                 </span>
                 <div className="flex items-center gap-2">
                   {RHYTHMS.map((r) => (
                     <button
                       key={r.bpm}
-                      onClick={() => setBpm(r.bpm)}
+                      onClick={() => {
+                        setBpm(r.bpm);
+                        setTapTimestamps([]);
+                        setTapStatus(`Preajuste: ${r.label}`);
+                      }}
                       className={`px-4 py-1.5 rounded-full text-xs font-light tracking-wide transition-all ${
                         bpm === r.bpm
                           ? "bg-gradient-to-r from-[#7a1228] to-[#450814] text-white border border-[#9e1c3a]/70 shadow-[0_0_15px_rgba(122,18,40,0.6)]"
