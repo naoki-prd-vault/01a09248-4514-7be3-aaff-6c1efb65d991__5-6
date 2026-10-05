@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Corazón Pro — Apple (Amor)",
-  description: "Diseñado para latir con una fuerza sobrehumana. Descubre Corazón Pro.",
+  title: "Corazón Pro Noir — Atelier de Alta Joyería Biológica",
+  description: "Diseño sensual en negros profundos y titanio vino borgoña.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
